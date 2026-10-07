@@ -32,13 +32,13 @@
 
 ## ✨ Características
 
-- **Autenticación completa sin escribirla**: Google OAuth y email/contraseña funcionando desde el primer arranque, con sesiones firmadas y cookie `HttpOnly`.
+- **Autenticación completa sin escribirla**: email y contraseña funcionando desde el primer arranque, y Google OAuth listo para activar pegando tus credenciales. Sesiones firmadas con cookie `HttpOnly`.
 - **Rutas protegidas por defecto**: un guard global cierra toda la API. Abres lo que quieras con un decorador, no al revés.
 - **Base de datos tipada**: Prisma 7 con SQLite vía libSQL, migraciones versionadas y cliente con tipos generados.
 - **Migración de auth incluida**: los modelos `User`, `Session`, `Account` y `Verification` ya están creados. Cero configuración manual.
 - **100% Bun**: runtime, gestor de paquetes y ejecución de TypeScript. Sin Node, sin compilación previa, `.env` cargado automáticamente.
 - **Calidad integrada**: `typecheck` con TypeScript, `lint` con oxlint consciente de tipos y formato con Prettier.
-- **Tests configurados**: Vitest para unitarios y end-to-end, atacando la app real con `inject()` de Fastify.
+- **Tests listos para escribir**: Vitest configurado para unitarios y end-to-end, atacando la app real con `inject()` de Fastify.
 - **Pensada para reutilizar**: conviértela en *template repository* de GitHub y arráncala en todos tus proyectos con el mismo comando.
 
 ---
@@ -125,6 +125,8 @@ GOOGLE_CLIENT_SECRET=""
 | `FRONTEND_URL` | Origen del frontend: se usa para CORS y `trustedOrigins` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Credenciales del login social |
 
+> `FRONTEND_URL` viene apuntando al mismo puerto que la API para que las pruebas con `curl` de este README funcionen sin tocar nada. Cámbialo al origen real de tu frontend cuando lo tengas.
+
 ### 4. Crea las tablas y genera el cliente
 
 ```bash
@@ -148,6 +150,8 @@ bun run start:dev
 curl http://localhost:3000/api/auth/ok
 # {"ok":true}
 ```
+
+> El puerto está fijado en `src/main.ts` (`app.listen(3000, '0.0.0.0')`). Cámbialo ahí si necesitas otro.
 
 ---
 
@@ -186,7 +190,11 @@ Si solo vas a usar email y contraseña, **sáltate este paso**: funciona sin con
 | `POST` | `/api/auth/sign-in/social` | Inicia sesión con Google. | ❌ |
 | `GET` | `/api/auth/callback/google` | Retorno desde Google (lo usa el flujo). | ❌ |
 | `GET` | `/api/auth/get-session` | Devuelve la sesión actual (`null` si no hay). | ❌ |
-| `POST` | `/api/auth/sign-out` | Cierra la sesión del usuario. | ✅ |
+| `POST` | `/api/auth/sign-out` | Cierra la sesión del usuario. | ➖ |
+
+> ➖ = responde `200` siempre; si envías la cookie, además revoca la sesión.
+>
+> Estos endpoints son **públicos por naturaleza** (tienen que serlo para poder iniciar sesión). El guard global protege **tus** rutas, no estas.
 
 **Prueba rápida** sin necesidad de frontend:
 
@@ -197,6 +205,29 @@ curl -s -X POST http://localhost:3000/api/auth/sign-in/social \
   -H 'Origin: http://localhost:3000' \
   -d '{"provider":"google","callbackURL":"/"}'
 ```
+
+---
+
+## 🔄 Cómo Funciona el Login
+
+```
+  Navegador               Tu API (/api/auth/*)              Google
+      │                            │                          │
+      │  1. signIn.social          │                          │
+      │───────────────────────────>│                          │
+      │                            │  2. redirige             │
+      │<───────────────────────────│                          │
+      │  3. el usuario elige cuenta y acepta ────────────────>│
+      │                            │<── 4. ?code=... ─────────│
+      │                            │  5. canjea el código     │
+      │                            │─────────────────────────>│
+      │                            │<── id_token + perfil ────│
+      │                            │  6. guarda User + Account│
+      │                            │     y crea una Session   │
+      │<── 7. cookie de sesión ────│                          │
+```
+
+A partir de ahí el navegador solo manda la cookie, y `get-session` devuelve el usuario.
 
 ---
 
@@ -254,7 +285,7 @@ export class TasksController {
 | *(ninguno)* | Requiere una sesión válida |
 | `@AllowAnonymous()` | No requiere autenticación |
 | `@OptionalAuth()` | Funciona con o sin sesión |
-| `@Roles(['admin'])` | Requiere `user.role` (plugin admin de Better Auth) |
+| `@Roles(['admin'])` | Requiere `user.role`. **Necesita el plugin admin de Better Auth**, que no viene instalado |
 
 ---
 
@@ -278,7 +309,7 @@ Esta sección es el motivo por el que existe esta plantilla: son las trampas que
 ## 🧩 Añadir tu Primer Modelo
 
 ```bash
-# 1. Edita prisma/schema.prisma y añade tu modelo
+# 1. Edita prisma/schema.prisma y añade tu modelo, por ejemplo Task
 # 2. Crea y aplica la migración
 bunx prisma migrate dev --name add_tasks
 
@@ -297,6 +328,7 @@ export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
   findAll() {
+    // `task` existe a partir del modelo que acabas de añadir
     return this.prisma.task.findMany();
   }
 }
@@ -339,6 +371,9 @@ expect(res.statusCode).toBe(200);
 | `bun run test:watch` | Ejecuta las pruebas en modo vigilancia. |
 | `bun run test:cov` | Ejecuta las pruebas con cobertura. |
 | `bun run test:e2e` | Ejecuta las pruebas end-to-end. |
+| `bun run test:debug` | Ejecuta las pruebas con el depurador de Node. |
+
+> `build` genera un bundle en `dist/`, pero **`start:prod` no lo usa**: ejecuta `bun src/main.ts`. Si quieres servir el bundle, arranca con `bun dist/main.js`.
 
 ---
 
@@ -353,7 +388,21 @@ En GitHub: **Settings → General →** marca **"Template repository"**.
 1. 🔐 **Genera un `BETTER_AUTH_SECRET` nuevo** (`openssl rand -base64 32`). No reutilices el de otro proyecto: ese secreto firma las sesiones.
 2. 🔑 **Credenciales de Google propias** y registra el nuevo redirect URI.
 3. 📝 Renombra `name` en `package.json` y ajusta `BETTER_AUTH_URL` y `FRONTEND_URL`.
-4. 🗄️ Ejecuta `bunx prisma migrate dev` para crear las tablas.
+4. 🗄️ Ejecuta `bunx prisma migrate dev` y luego `bunx prisma generate`.
+
+---
+
+## 🚑 Problemas Comunes
+
+| Error | Causa y solución |
+| :--- | :--- |
+| `Cannot find module '.../prisma/generated/client.js'` | Falta el cliente generado. Ejecuta `bunx prisma generate`. |
+| `Prisma schema mismatch: Missing tables` al arrancar | El cliente está desactualizado respecto al esquema. `bunx prisma generate` y reinicia. |
+| `Error: The datasource.url property is required` | La CLI de Prisma no encontró el `.env`. Comprueba que existe y que `prisma7.config.ts` conserva el `import "dotenv/config"`. |
+| `redirect_uri_mismatch` (lo dice Google) | El *Authorized redirect URI* no coincide **exactamente** con `<BETTER_AUTH_URL>/api/auth/callback/google`. Ojo: `localhost` y `127.0.0.1` son distintos, y sobra cualquier barra final. |
+| El login falla en el navegador pero funciona con `curl` | `FRONTEND_URL` no coincide con el origen real del frontend, y Better Auth bloquea los orígenes que no están en `trustedOrigins`. |
+| `Acceso bloqueado: esta app no ha completado el proceso de verificación` | La pantalla de consentimiento sigue en modo **Testing** y tu cuenta no está en **Test users**. |
+| Todas mis rutas responden `401` | Es el guard global. Marca como públicas las que deban serlo con `@AllowAnonymous()`. |
 
 ---
 
@@ -368,9 +417,9 @@ En GitHub: **Settings → General →** marca **"Template repository"**.
 
 ## 📄 Licencia
 
-Este proyecto es de código privado y no tiene licencia de código abierto.
+**UNLICENSED** — el repositorio es público, pero no tiene una licencia de código abierto que conceda permisos explícitos de uso, copia o modificación.
 
-**UNLICENSED**
+Si quieres que otras personas puedan reutilizar la plantilla libremente, añade un archivo `LICENSE` con MIT.
 
 <div align="center">
   <br />
