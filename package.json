@@ -1,8 +1,8 @@
 {
   "name": "bun-nestjs-template",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "Plantilla de backend: NestJS + Fastify + Prisma 7 + Better Auth, 100% sobre Bun.",
+  "author": "Giovanni Martinez (https://github.com/giovannimartinez-1408)",
   "private": true,
   "license": "MIT",
   "type": "module",
