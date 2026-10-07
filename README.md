@@ -25,7 +25,7 @@
 
 <p align="center">
   <img alt="Template" src="https://img.shields.io/badge/Template_Repository-2ea44f?style=for-the-badge&logo=github&logoColor=white" />
-  <img alt="Licencia" src="https://img.shields.io/badge/Licencia-UNLICENSED-red?style=for-the-badge" />
+  <img alt="Licencia MIT" src="https://img.shields.io/badge/Licencia-MIT-2ea44f?style=for-the-badge&logo=opensourceinitiative&logoColor=white" />
 </p>
 
 ---
@@ -417,9 +417,9 @@ En GitHub: **Settings → General →** marca **"Template repository"**.
 
 ## 📄 Licencia
 
-**UNLICENSED** — el repositorio es público, pero no tiene una licencia de código abierto que conceda permisos explícitos de uso, copia o modificación.
+[MIT](LICENSE) — puedes usar, copiar, modificar y distribuir esta plantilla libremente, incluso con fines comerciales, siempre que conserves el aviso de copyright.
 
-Si quieres que otras personas puedan reutilizar la plantilla libremente, añade un archivo `LICENSE` con MIT.
+Copyright © 2026 Giovanni Martinez
 
 <div align="center">
   <br />
